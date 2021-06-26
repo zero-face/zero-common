@@ -1,11 +1,10 @@
 package com.zero.common.util;
 
 
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.EncodeHintType;
-import com.google.zxing.MultiFormatWriter;
-import com.google.zxing.WriterException;
+import com.google.zxing.*;
+import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
 import com.google.zxing.common.BitMatrix;
+import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import com.sun.xml.internal.ws.util.UtilException;
 import org.apache.commons.lang3.StringUtils;
@@ -16,11 +15,11 @@ import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
+import java.net.URL;
 import java.util.List;
 import java.util.*;
+import java.util.regex.Pattern;
 
 
 /**
@@ -30,7 +29,6 @@ import java.util.*;
  * @Since 1.8
  **/
 public class QRCodeGeneratorUtil {
-
     private static Logger logger = LoggerFactory.getLogger(QRCodeGeneratorUtil.class);
 
     private static final int width = 300;//默认二维码宽度
@@ -55,7 +53,6 @@ public class QRCodeGeneratorUtil {
         hints.put(EncodeHintType.MARGIN,2);//二维码与图片边距
         SUPPORT_FILE_SUFFIX.add("jpg");
         SUPPORT_FILE_SUFFIX.add("png");
-        SUPPORT_FILE_SUFFIX.add("jepg");
     }
 
     /**
@@ -124,6 +121,7 @@ public class QRCodeGeneratorUtil {
         String finalPath = createORCode(srcUrl, imgPath, imgWidth, imgHeight,null, null, false);
         return finalPath;
     }
+
     /**
      * 生成 指定尺寸，默认名称，无logo 的二维码 输出到流中
      * @param srcUrl
@@ -191,6 +189,7 @@ public class QRCodeGeneratorUtil {
         byte[] orCodeLogo = createORCodeLogo(srcUrl, imgWidth, imgHeight, null, logoPath, needCompress);
         return orCodeLogo;
     }
+
     /**
      * 生成 指定大小 指定名称 包含logo 二维码
      * @param srcUrl
@@ -248,7 +247,6 @@ public class QRCodeGeneratorUtil {
         if(StringUtils.isNotBlank(logoPath)){
             boolean b = checkImg(logoPath);
             if(b) {
-
                 finalPath = createORCodeForLogoToFile(srcUrl, imgPath, imgWidth, imgHeight, imgName, logoPath, needCompress);
             }
             else {
@@ -385,17 +383,27 @@ public class QRCodeGeneratorUtil {
      * @throws WriterException
      */
     private static BufferedImage drawQR(String srcUrl, int imgWidth, int imgHeight) throws WriterException {
-        BitMatrix bitMatrix = new MultiFormatWriter().encode(srcUrl, BarcodeFormat.QR_CODE, imgWidth, imgHeight, hints);
-
-        BufferedImage bufferedImage = new BufferedImage(imgWidth, imgHeight, BufferedImage.TYPE_INT_BGR);
+        BitMatrix matrix = new MultiFormatWriter().encode(srcUrl, BarcodeFormat.QR_CODE, imgWidth, imgHeight, hints);
+        int[] pixels = new int[width * height];
         //绘制成二维码（应该）
         for (int x = 0; x < imgWidth; x++) {
             for (int y = 0; y < imgHeight; y++) {
-                bufferedImage.setRGB(x, y, bitMatrix.get(x, y) ? 0xFF000000
-                        : 0xFFFFFF);
+                // 二维码颜色（RGB）
+                int num1 = (int) (50 - (50.0 - 13.0) / matrix.getHeight()
+                        * (y + 1));
+                int num2 = (int) (165 - (165.0 - 72.0) / matrix.getHeight()
+                        * (y + 1));
+                int num3 = (int) (162 - (162.0 - 107.0)
+                        / matrix.getHeight() * (y + 1));
+                Color color = new Color(num1, num2, num3);
+                int colorInt = color.getRGB();
+                // 此处可以修改二维码的颜色，可以分别制定二维码和背景的颜色；
+                pixels[y * width + x] = matrix.get(x, y) ? colorInt : 16777215;
             }
         }
-        return bufferedImage;
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        image.getRaster().setDataElements(0, 0, width, height, pixels);
+        return image;
     }
 
     /**
@@ -406,13 +414,21 @@ public class QRCodeGeneratorUtil {
      * @throws IOException
      */
     private static Image enterFinalLogoImg(String logoPath, boolean needCompress) throws IOException {
-        BufferedImage logoImage = ImageIO.read(new File(logoPath));
-
+        //根据图片的路径，获取图片偏流
+        InputStream inputStream = null;
+        boolean isUrl = isURL(logoPath);
+        if(isUrl) {
+            URL url = new URL(logoPath);
+            inputStream = url.openStream();
+        } else {
+           inputStream = new FileInputStream(new File(logoPath));
+        }
+        BufferedImage logoImage = ImageIO.read(inputStream);
         int tempWidth = logoImage.getWidth(null);
         int tempHeight = logoImage.getHeight(null);
-
+        //最终确定的logo图片
         Image src = logoImage;
-
+        //需要压缩
         if(needCompress){
             if(tempWidth > logo_width){
                 tempWidth = logo_width;
@@ -504,53 +520,82 @@ public class QRCodeGeneratorUtil {
             if (contains) {
                 isImg = true;
             }
-
         }
-        return true;
+        return true;//这个地方为了网络图片的需要，暂时牺牲一下永远判定格式正确
     }
+
+    /**
+     * 判断输入的路径是不是网络地址
+     * @param str
+     * @return
+     */
+    public static boolean isURL(String str){
+        //转换为小写// first level domain- .com or .museum  
+        str = str.toLowerCase();//https、http、ftp、rtsp、mms//ftp的user@  // 二级域名 // IP形式的URL- 例如：199.194.52.184 // 允许IP和DOMAIN（域名）// 域名- www.  
+        Pattern pattern = Pattern.compile("^(https?|ftp|file)://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]");
+        boolean matches = pattern.matcher(str).matches();
+        return matches;
+    }
+
+
+    /**
+     * 解析二维码图片入口
+     * @param url
+     * @return
+     * @throws IOException
+     * @throws NotFoundException
+     */
+
+    public static String decoderQRCode(String url) throws IOException, NotFoundException {
+        InputStream inputStream = null;
+        String result = null;
+        if(isURL(url)){
+            URL url1 = new URL(url);
+            inputStream = url1.openStream();
+            result = decoderQRCodeFromUrl(inputStream);
+        } else {
+            inputStream = new FileInputStream(new File(url));
+            result = decoderQRCodeFromFile(inputStream);
+        }
+        return result;
+    }
+
     /**
      * 解析二维码（QRCode）
      * @param imgPath 图片路径
      * @return
      */
-    /*public static String decoderQRCode(String imgPath) {
-        // QRCode 二维码图片的文件
-        File imageFile = new File(imgPath);
-        BufferedImage bufImg = null;
-        String content = null;
+    public static String decoderQRCodeFromFile(InputStream imgPath) {
+        Result result = null;
         try {
-            bufImg = ImageIO.read(imageFile);
-            QRCodeDecoder decoder = new QRCodeDecoder();
-            content = new String(decoder.decode(new TwoDimensionCodeImage(bufImg)), "utf-8");
-        } catch (IOException e) {
-            System.out.println("Error: " + e.getMessage());
+            MultiFormatReader formatReader = new MultiFormatReader();
+            BufferedImage image = ImageIO.read(imgPath);
+            BinaryBitmap binaryBitmap = new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image)));
+
+            //定义二维码的参数
+            Map hints = new HashMap();
+            hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
+            result = formatReader.decode(binaryBitmap, hints);
+        } catch (Exception e) {
             e.printStackTrace();
-        } catch (DecodingFailedException dfe) {
-            System.out.println("Error: " + dfe.getMessage());
-            dfe.printStackTrace();
         }
-        return content;
+        return result.getText();
     }
 
-    *//**
+    /**
      * 解析二维码（QRCode）
      * @param input 输入流
      * @return
-     *//*
-    public String decoderQRCode(InputStream input) {
-        BufferedImage bufImg = null;
-        String content = null;
-        try {
-            bufImg = ImageIO.read(input);
-            QRCodeDecoder decoder = new QRCodeDecoder();
-            content = new String(decoder.decode(new TwoDimensionCodeImage(bufImg)), "utf-8");
-        } catch (IOException e) {
-            System.out.println("Error: " + e.getMessage());
-            e.printStackTrace();
-        } catch (DecodingFailedException dfe) {
-            System.out.println("Error: " + dfe.getMessage());
-            dfe.printStackTrace();
-        }
-        return content;
-    }*/
+     */
+    public static String decoderQRCodeFromUrl(InputStream input) throws IOException, NotFoundException {
+        Result result = null;
+        MultiFormatReader formatReader = new MultiFormatReader();
+        BufferedImage image = ImageIO.read(input);
+        BinaryBitmap binaryBitmap = new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image)));
+        //定义二维码的参数
+        Map hints = new HashMap();
+        hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
+        result = formatReader.decode(binaryBitmap, hints);
+        return result.getText();
+    }
 }
