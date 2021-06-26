@@ -68,7 +68,6 @@ public class OSSUtils {
         }finally {
             oss.shutdown();
         }
-
         return CommonReturnType.success("https://"+bucketName+"."+endpoint+"/"+objectName);
     }
 

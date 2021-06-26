@@ -406,13 +406,13 @@ public class QRCodeGeneratorUtil {
      * @throws IOException
      */
     private static Image enterFinalLogoImg(String logoPath, boolean needCompress) throws IOException {
-        //插入logo
         BufferedImage logoImage = ImageIO.read(new File(logoPath));
+
         int tempWidth = logoImage.getWidth(null);
         int tempHeight = logoImage.getHeight(null);
-        //最终确定的logo图片
+
         Image src = logoImage;
-        //需要压缩
+
         if(needCompress){
             if(tempWidth > logo_width){
                 tempWidth = logo_width;
