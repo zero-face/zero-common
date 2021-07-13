@@ -530,12 +530,12 @@ public class QRCodeGeneratorUtil {
      * @return
      */
     public static boolean isURL(String str){
-        //转换为小写// first level domain- .com or .museum  
-        str = str.toLowerCase();//https、http、ftp、rtsp、mms//ftp的user@  // 二级域名 // IP形式的URL- 例如：199.194.52.184 // 允许IP和DOMAIN（域名）// 域名- www.  
+        str = str.toLowerCase();
         Pattern pattern = Pattern.compile("^(https?|ftp|file)://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]");
         boolean matches = pattern.matcher(str).matches();
         return matches;
     }
+
 
 
     /**
@@ -545,8 +545,7 @@ public class QRCodeGeneratorUtil {
      * @throws IOException
      * @throws NotFoundException
      */
-
-    public static String decoderQRCode(String url) throws IOException, NotFoundException {
+    public static String decoderQRCode(String url) throws Exception {
         InputStream inputStream = null;
         String result = null;
         if(isURL(url)){
@@ -587,7 +586,7 @@ public class QRCodeGeneratorUtil {
      * @param input 输入流
      * @return
      */
-    public static String decoderQRCodeFromUrl(InputStream input) throws IOException, NotFoundException {
+    public static String decoderQRCodeFromUrl(InputStream input) throws Exception {
         Result result = null;
         MultiFormatReader formatReader = new MultiFormatReader();
         BufferedImage image = ImageIO.read(input);
@@ -595,7 +594,11 @@ public class QRCodeGeneratorUtil {
         //定义二维码的参数
         Map hints = new HashMap();
         hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
-        result = formatReader.decode(binaryBitmap, hints);
+        try {
+            result = formatReader.decode(binaryBitmap, hints);
+        } catch (NotFoundException e) {
+            throw new Exception("二维码中没有任何信息");
+        }
         return result.getText();
     }
 }
