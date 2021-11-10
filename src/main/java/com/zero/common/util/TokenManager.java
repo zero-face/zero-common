@@ -1,9 +1,7 @@
 package com.zero.common.util;
 
-import io.jsonwebtoken.CompressionCodecs;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-import org.springframework.stereotype.Component;
+
+import com.sun.org.apache.xml.internal.security.algorithms.SignatureAlgorithm;
 
 import java.util.Date;
 
